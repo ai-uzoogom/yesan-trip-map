@@ -47,6 +47,8 @@
     let overview = false;
     let manual = false;
     let lastFrame = 0;
+    let arrivalPulseStartedAt = null;
+    const arrivalPulseDuration = 900;
     let moved = false;
     const drag = new Map();
     const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -94,6 +96,8 @@
 
     function update(view, options = {}) {
       snapshot = view;
+      if (!view.showArrival || reduceMotion.matches) arrivalPulseStartedAt = null;
+      else if (options.pulseArrival) arrivalPulseStartedAt = performance.now();
       if (focusDay !== view.day || options.resetCamera) {
         focusDay = view.day;
         manual = false;
@@ -295,7 +299,7 @@
       context.fillText(name, px + 8, py + h / 2 + .3);
     }
 
-    function routes() {
+    function routes(pulseProgress) {
       const view = snapshot;
       const segments = overview ? view.allLegs : view.legs;
       for (const leg of segments) strokeLeg(leg, 1, false);
@@ -331,6 +335,11 @@
         halo.addColorStop(1, "#3078d000");
         dot(x, y, 25, halo);
       }
+      if (pulseProgress < 1) {
+        const remaining = 1 - pulseProgress;
+        const radius = mix(12, 46, 1 - remaining ** 2);
+        dot(x, y, radius, null, `rgba(117, 216, 255, ${.82 * remaining})`, 2);
+      }
       dot(x, y, 10, "#70c8ff27", "#78ceff87");
       dot(x, y, 4, "#ebfaff", "#69d2ff", 1.7);
       const active = markers.find(marker => marker.active);
@@ -350,8 +359,12 @@
       }
       context.setTransform(layout.ratio, 0, 0, layout.ratio, 0, 0);
       terrain();
-      routes();
-      if (adjusting) requestDraw();
+      const pulseProgress = arrivalPulseStartedAt === null
+        ? 1
+        : clamp((now - arrivalPulseStartedAt) / arrivalPulseDuration, 0, 1);
+      if (pulseProgress === 1) arrivalPulseStartedAt = null;
+      routes(pulseProgress);
+      if (adjusting || arrivalPulseStartedAt !== null) requestDraw();
     }
 
     function requestDraw() {

@@ -255,7 +255,7 @@
       byId("arrivalStatus").textContent = placeNodes.title.textContent;
     }
     const arrivalInset = showArrival ? panelHeight : 0;
-    map?.update({ ...view, arrivalInset }, options);
+    map?.update({ ...view, arrivalInset, showArrival }, options);
   }
 
   function stopAnimation() {
@@ -276,7 +276,7 @@
       movement = null;
       arrived = true;
       stopAnimation();
-      render({ follow: !overview, overview });
+      render({ follow: !overview, overview, pulseArrival: true });
       return;
     }
     time = proposed;
