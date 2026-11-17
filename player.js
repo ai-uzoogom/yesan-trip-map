@@ -112,6 +112,10 @@
   const placePanel = byId("placePanel");
   const mapArea = placePanel.parentElement;
   const routeStatus = byId("routeStatus");
+  const travelDistance = byId("travelDistance");
+  const traveledKm = byId("traveledKm");
+  const totalKm = byId("totalKm");
+  const distanceReading = new Intl.NumberFormat("ko-KR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const today = () => trip.days[activeDay];
   const stopsFor = day => [...new Set(day.events.map(event => event.place))];
   const formatKm = n => (n / 1000).toLocaleString("ko-KR", { maximumFractionDigits: 1 }) + " km";
@@ -224,6 +228,14 @@
     return (fraction - ramp / 2) / cruise;
   }
 
+  function segmentFraction(segment) {
+    return clamp((time - segment.start) / (segment.end - segment.start), 0, 1);
+  }
+
+  function distanceProgress(fraction) {
+    return reducedMotion.matches ? Math.floor(fraction * 12) / 12 : easedTravel(fraction);
+  }
+
   function vehiclePose(line, fraction, direction) {
     const span = Math.min(65 / line.length, .06);
     const from = position(line, fraction - direction * span).point;
@@ -239,10 +251,8 @@
     const segment = movement?.segment || playback.timeline.find(item => item.end > time) || playback.timeline.at(-1);
     const index = movement?.cardIndex ?? segment.index;
     const event = today().events[index];
-    const fraction = clamp((time - segment.start) / (segment.end - segment.start), 0, 1);
-    const travelProgress = reducedMotion.matches
-      ? Math.floor(fraction * 12) / 12
-      : easedTravel(fraction);
+    const fraction = segmentFraction(segment);
+    const travelProgress = distanceProgress(fraction);
     const direction = movement?.direction || 1;
     const journeyProgress = direction > 0 ? fraction : 1 - fraction;
     const approachProgress = clamp((journeyProgress - .42) / .35, 0, 1);
@@ -285,8 +295,32 @@
     if (showArrival && byId("arrivalStatus").textContent !== placeNodes.title.textContent) {
       byId("arrivalStatus").textContent = placeNodes.title.textContent;
     }
+    renderTravelDistance(view);
     const arrivalInset = !overview && (showArrival || movement) ? panelHeight : 0;
     map?.update({ ...view, arrivalInset, showArrival }, options);
+  }
+
+  function renderTravelDistance(view) {
+    const visible = !!view.travel && !overview;
+    if (travelDistance.hidden === visible) {
+      travelDistance.hidden = !visible;
+      mapArea.classList.toggle("has-travel-distance", visible);
+    }
+    if (!visible) return;
+
+    const legDistance = view.travel.distance;
+    if (view.travel.preview || !Number.isFinite(legDistance)) {
+      traveledKm.textContent = "개략 경로";
+      totalKm.textContent = "";
+      return;
+    }
+    const start = movement.startProgress;
+    const remaining = view.direction > 0 ? 1 - start : start;
+    const progress = clamp((view.travelProgress - start) * view.direction, 0, remaining);
+    const traveled = distanceReading.format(progress * legDistance / 1000);
+    const total = "/ " + distanceReading.format(remaining * legDistance / 1000) + " km";
+    if (traveledKm.textContent !== traveled) traveledKm.textContent = traveled;
+    if (totalKm.textContent !== total) totalKm.textContent = total;
   }
 
   function stopAnimation() {
@@ -362,11 +396,12 @@
       return;
     }
     stopAnimation();
+    time = direction > 0 ? Math.max(time, leg.start) : Math.min(time, leg.end);
     movement = {
       segment: leg, destination: index, end: direction > 0 ? leg.end : leg.start, direction, cardIndex: currentIndex,
+      startProgress: distanceProgress(segmentFraction(leg)),
       stop: vehiclePose(leg.leg.line, direction > 0 ? 1 : 0, direction)
     };
-    time = direction > 0 ? Math.max(time, leg.start) : Math.min(time, leg.end);
     overview = false;
     follow = true;
     byId("overview").setAttribute("aria-pressed", "false");

@@ -106,6 +106,25 @@ svg { width: 18px; height: 18px; display: block; flex: none; }
   transition: transform .36s var(--map-easing);
 }
 .schedule-button { display: grid; place-items: center; }
+.travel-distance {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: var(--panel-bottom);
+  transform: translateX(-50%);
+  min-width: 132px;
+  padding: 7px 14px 8px;
+  border: 1px solid #45617d70;
+  border-radius: 11px;
+  background: #101d2df5;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.travel-distance-label { display: block; color: var(--muted); font-size: 11px; }
+.travel-distance p { display: flex; align-items: baseline; justify-content: center; gap: 5px; }
+#traveledKm { color: var(--ink); font: 650 23px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+#totalKm { color: var(--muted); font: 500 12px var(--mono); font-variant-numeric: tabular-nums; }
 .map-foot { position: absolute; bottom: var(--map-bottom); left: 18px; right: 18px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .route-status { background: #0a1625ec; border: 1px solid #31435b; border-radius: 8px; color: #d2e2f7; min-height: 40px; padding: 0 9px; display: inline-flex; gap: 7px; align-items: center; white-space: nowrap; font-size: 11px; }
 .route-status svg { width: 14px; height: 14px; color: var(--muted); }
@@ -304,5 +323,5 @@ body.immersed { overflow: hidden; }
 .map-gesture span { margin: 0 1px; height: 10px; border-left: 1px solid #66788b; }
 @media (max-width: 760px) {
   .map-gesture { top: auto; bottom: calc(var(--panel-bottom) + 8px); left: 50%; transform: translateX(-50%); white-space: nowrap; }
-  .has-arrival .map-gesture { opacity: 0; }
+  .has-arrival .map-gesture, .has-travel-distance .map-gesture { opacity: 0; }
 }
