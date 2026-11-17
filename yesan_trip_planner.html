@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>스플라스 리솜 · 예산 여행 지도</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="trip-data.js"></script>
+  <script defer src="map-data.js"></script>
+  <script defer src="map.js"></script>
+  <script defer src="player.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-mark" data-icon="route"></span>
+      <div><p class="eyebrow">충남 예산 · 자가용 여행</p><h1>스플라스 리솜 온천 여행</h1></div>
+    </div>
+    <div class="mast-meta">
+      <span data-icon="calendar"></span><span>2026.11.18–11.20</span><i></i><span>2박 3일</span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="journey" id="journey" aria-label="여행 지도 플레이어">
+      <div class="map-area">
+        <canvas id="cartography" tabindex="0" aria-label="여행 경로 지도. 왼쪽과 오른쪽을 탭하면 이전과 다음 장소로 이동합니다. 키보드에서는 대괄호 키를 사용하세요."></canvas>
+        <div class="map-vignette" aria-hidden="true"></div>
+        <div class="map-header">
+          <div class="day-controls">
+            <div class="day-tabs" id="days" role="group" aria-label="재생 날짜"></div>
+            <div class="map-header-actions">
+              <button class="map-button schedule-button" type="button" id="schedule" data-icon="list" title="전체 일정 보기" aria-label="전체 일정 보기"></button>
+              <button class="icon-button map-button" id="fullscreen" type="button" data-icon="expand" aria-label="지도 전체 화면" title="지도 전체 화면"></button>
+            </div>
+          </div>
+        </div>
+        <div class="map-tools" role="group" aria-label="지도 조작">
+          <span class="north" aria-hidden="true">N <span data-icon="north"></span></span>
+          <button class="icon-button map-button" type="button" id="zoomIn" data-icon="plus" aria-label="지도 확대" title="지도 확대"></button>
+          <button class="icon-button map-button" type="button" id="zoomOut" data-icon="minus" aria-label="지도 축소" title="지도 축소"></button>
+          <button class="icon-button map-button" type="button" id="overview" data-icon="frame" aria-pressed="false" aria-label="전체 여행 경로" title="전체 여행 경로"></button>
+        </div>
+        <p class="map-gesture" aria-hidden="true">‹ 왼쪽 탭 · 이전 <span></span> 오른쪽 탭 · 다음 ›</p>
+        <div class="map-foot">
+          <button type="button" id="routeStatus" class="route-status"><span data-icon="layers"></span><span id="routeLabel">개략 경로</span></button>
+          <span class="source" id="attribution"></span>
+        </div>
+      </div>
+
+      <div class="stage-footer">
+        <article class="place-panel" id="placePanel" aria-labelledby="placeTitle">
+          <div class="place-copy" id="placeCopy">
+            <div class="place-meta"><span data-icon="clock"></span><span id="placeTime"></span><span class="meta-divider"></span><span id="placeKind"></span><span class="place-count" id="placeCount"></span></div>
+            <h2 id="placeTitle"></h2>
+            <p id="placeDescription"></p>
+          </div>
+          <div id="photos" class="photos" aria-label="여행 장면 일러스트"></div>
+          <div class="place-actions">
+            <div class="next-place"><span>다음 일정</span><strong id="nextTitle"></strong></div>
+            <a id="directions" class="directions" target="_blank" rel="noopener noreferrer"><span data-icon="navigation"></span> 길찾기</a>
+          </div>
+        </article>
+        <div class="playback" aria-label="재생 조작">
+          <div class="progress-heading"><label for="progress">재생 진행</label><span id="distance"></span><output id="percent" for="progress">0%</output></div>
+          <input id="progress" type="range" min="0" max="1000" value="0" aria-label="재생 진행률">
+          <div class="transport">
+            <button type="button" class="icon-button" id="restart" data-icon="restart" aria-label="처음 위치로" title="처음 위치로"></button>
+            <button type="button" class="icon-button" id="previous" data-icon="skipBack" aria-label="이전 일정" title="이전 일정"></button>
+            <button type="button" class="icon-button play" id="play" data-icon="play" aria-label="다음 일정까지 재생" title="다음 일정까지 재생"></button>
+            <button type="button" class="icon-button" id="next" data-icon="skipNext" aria-label="다음 일정" title="다음 일정"></button>
+            <label class="speed"><span class="sr-only">재생 속도</span>
+              <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+              <span data-icon="chevronDown"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="itinerary" aria-labelledby="itineraryTitle">
+      <div class="itinerary-head">
+        <div><h2 id="itineraryTitle">여행 일정</h2><p>11월 18일 수요일 – 20일 금요일</p></div>
+        <button class="icon-button bordered" type="button" id="copy" data-icon="copy" title="전체 일정 복사" aria-label="전체 일정 복사"></button>
+      </div>
+      <div id="timeline"></div>
+      <p class="side-note"><span data-icon="info"></span> 표시 시각은 여행 계획 기준입니다.</p>
+    </aside>
+  </main>
+
+  <dialog id="scheduleDialog" aria-labelledby="scheduleTitle">
+    <div class="dialog-head"><div><p class="eyebrow">2026.11.18–11.20</p><h2 id="scheduleTitle">전체 일정</h2></div><button class="icon-button bordered" type="button" data-close data-icon="close" aria-label="닫기"></button></div>
+    <div id="allTimeline"></div>
+    <button type="button" class="action-button" id="copyDialog"><span data-icon="copy"></span>일정 복사</button>
+    <textarea id="copyFallback" aria-label="복사할 여행 일정" readonly hidden></textarea>
+  </dialog>
+
+  <dialog id="routeDialog" aria-labelledby="routeTitle">
+    <div class="dialog-head"><div><p class="eyebrow">지도 데이터</p><h2 id="routeTitle">경로 설정</h2></div><button class="icon-button bordered" type="button" data-close data-icon="close" aria-label="닫기"></button></div>
+    <p id="routeExplanation"></p>
+    <ul id="routeLegend" class="route-legend" aria-label="이동 구간별 색상"></ul>
+    <p>기본 출발·도착점은 용인 수지구청입니다. 실제 출발지 주소나 좌표를 입력하면 이 브라우저에만 저장됩니다.</p>
+    <form id="pointForm">
+      <div class="coordinate-fields">
+        <label>위도<input name="lat" type="number" min="-85" max="85" step="any" inputmode="decimal" placeholder="37.00000"></label>
+        <label>경도<input name="lon" type="number" min="-180" max="180" step="any" inputmode="decimal" placeholder="127.00000"></label>
+      </div>
+      <label class="origin-address">길찾기용 출발지 주소 (선택)<input name="address" type="text" maxlength="200" autocomplete="off" placeholder="이 브라우저에만 저장"></label>
+      <div class="dialog-actions"><button class="action-button" type="submit">출발점 적용</button><button class="action-button plain" type="button" id="resetPoint">대표점으로 복원</button></div>
+    </form>
+    <hr>
+    <p>도로 경로 조회를 선택하면 출발지 및 방문지 좌표가 FOSSGIS의 OSRM 서버로 전송됩니다. 조회 요청은 서버 로그에 기록될 수 있습니다. 조회 결과에는 실시간 교통이 반영되지 않습니다.</p>
+    <button type="button" class="action-button" id="fetchRoads"><span data-icon="route"></span>좌표 전송 후 도로 경로 조회</button>
+    <label class="route-import">GeoJSON 경로 가져오기<input id="routeImport" type="file" accept=".json,.geojson,application/json,application/geo+json"></label>
+    <p class="source-line"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> <span>·</span> <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener noreferrer">OSRM / FOSSGIS</a> <span>·</span> <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer">지도 수정</a></p>
+    <p id="routeFeedback" role="status"></p>
+  </dialog>
+
+  <dialog id="gallery" class="gallery" aria-labelledby="galleryTitle">
+    <div class="dialog-head"><div><p class="eyebrow">여행 일러스트</p><h2 id="galleryTitle"></h2></div><button class="icon-button bordered" type="button" data-close data-icon="close" aria-label="닫기"></button></div>
+    <img id="galleryImage" alt="">
+    <div class="gallery-nav"><button class="icon-button bordered" id="imagePrevious" type="button" data-icon="chevronLeft" aria-label="이전 이미지"></button><span id="imageIndex"></span><button class="icon-button bordered" id="imageNext" type="button" data-icon="chevronRight" aria-label="다음 이미지"></button></div>
+  </dialog>
+
+  <dialog id="summary" aria-labelledby="summaryTitle">
+    <div class="dialog-head"><div><p class="eyebrow" id="summaryDate"></p><h2 id="summaryTitle">여행 경로 요약</h2></div><button class="icon-button bordered" type="button" data-close data-icon="close" aria-label="닫기"></button></div>
+    <p id="summaryInfo"></p>
+    <ol id="summaryStops"></ol>
+    <div class="dialog-actions"><button class="action-button" id="summaryMap" type="button"><span data-icon="frame"></span>전체 경로 보기</button><button class="action-button plain" id="summaryNext" type="button">다음 날 보기</button></div>
+  </dialog>
+
+  <div role="status" id="toast" class="toast" hidden></div>
+  <noscript><p class="noscript">여행 지도를 사용하려면 브라우저에서 JavaScript를 켜 주세요.</p></noscript>
+</body>
+</html>
