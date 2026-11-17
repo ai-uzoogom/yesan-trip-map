@@ -7,11 +7,11 @@
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
   <title>스플라스 리솜 · 예산 여행 지도</title>
-  <link rel="stylesheet" href="styles.css?v=arrival">
+  <link rel="stylesheet" href="styles.css?v=map-controls">
   <script defer src="trip-data.js?v=arrival"></script>
   <script defer src="map-data.js?v=arrival"></script>
-  <script defer src="map.js?v=arrival"></script>
-  <script defer src="player.js?v=arrival"></script>
+  <script defer src="map.js?v=map-controls"></script>
+  <script defer src="player.js?v=map-controls"></script>
 </head>
 <body>
   <header class="masthead">
@@ -38,11 +38,7 @@
             </div>
           </div>
         </div>
-        <div class="map-tools" role="group" aria-label="지도 조작">
-          <button class="icon-button map-button" type="button" id="zoomIn" data-icon="plus" aria-label="지도 확대" title="지도 확대"></button>
-          <button class="icon-button map-button" type="button" id="zoomOut" data-icon="minus" aria-label="지도 축소" title="지도 축소"></button>
-          <button class="icon-button map-button" type="button" id="overview" data-icon="frame" aria-pressed="false" aria-label="전체 여행 경로" title="전체 여행 경로"></button>
-        </div>
+        <button class="icon-button map-button map-overview" type="button" id="overview" data-icon="frame" aria-pressed="false" aria-label="전체 여행 경로" title="전체 여행 경로"></button>
         <p class="map-gesture" aria-hidden="true">‹ 왼쪽 탭 · 이전 <span></span> 오른쪽 탭 · 다음 ›</p>
         <div class="map-foot">
           <button type="button" id="routeStatus" class="route-status"><span data-icon="layers"></span><span id="routeLabel">개략 경로</span></button>

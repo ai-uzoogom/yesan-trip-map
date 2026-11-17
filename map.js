@@ -442,7 +442,7 @@
     reduceMotion.addEventListener("change", () => snapshot && update(snapshot, { snap: true }));
     new ResizeObserver(resize).observe(canvas);
     resize();
-    return { update, zoom };
+    return { update };
   }
 
   window.tripMap = { createMap, measure, position, meters, project, clamp, mix };

@@ -10,8 +10,6 @@
     list: '<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
     expand: '<path d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/>',
     compress: '<path d="M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5"/>',
-    plus: '<path d="M5 12h14M12 5v14"/>',
-    minus: '<path d="M5 12h14"/>',
     frame: '<path d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/><circle cx="12" cy="12" r="3"/>',
     layers: '<path d="m3 8 9-5 9 5-9 5-9-5Zm0 4 9 5 9-5M3 16l9 5 9-5"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
@@ -761,8 +759,6 @@
     }
   }
 
-  byId("zoomIn").addEventListener("click", () => map?.zoom(1.45));
-  byId("zoomOut").addEventListener("click", () => map?.zoom(1 / 1.45));
   byId("overview").addEventListener("click", () => setOverview(!overview));
   byId("schedule").addEventListener("click", () => openDialog("scheduleDialog"));
   byId("copy").addEventListener("click", copySchedule);
@@ -831,7 +827,7 @@
     const fallback = element("p", "map-unavailable", "이 브라우저에서 지도를 그릴 수 없습니다. 일정과 장소 정보는 계속 볼 수 있습니다.");
     byId("cartography").after(fallback);
     byId("cartography").hidden = true;
-    for (const id of ["zoomIn", "zoomOut", "overview"]) byId(id).disabled = true;
+    byId("overview").disabled = true;
   }
   catalog = makeCatalog();
   chooseDay(0);
