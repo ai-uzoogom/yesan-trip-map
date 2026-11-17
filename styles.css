@@ -130,7 +130,7 @@ svg { width: 18px; height: 18px; display: block; flex: none; }
   visibility: hidden;
   pointer-events: none;
   transform: translateY(24px);
-  transition: transform .32s var(--map-easing), opacity .15s ease, visibility 0s linear .32s;
+  transition: transform .32s var(--map-easing), opacity .15s ease;
 }
 .has-arrival .place-panel {
   visibility: visible;

@@ -47,17 +47,21 @@
     let overview = false;
     let manual = false;
     let lastFrame = 0;
+    let vehicleHeading = null;
     let arrivalPulse = null;
     const arrivalWaves = [
-      { delay: 0, radius: 30, opacity: .66 },
-      { delay: 135, radius: 38, opacity: .77 },
-      { delay: 270, radius: 54, opacity: .94 }
+      { delay: 0, radius: 27, opacity: .25 },
+      { delay: 122, radius: 31, opacity: .31 },
+      { delay: 244, radius: 35, opacity: .37 }
     ];
-    const waveDuration = 360;
+    const waveDuration = 365;
     const arrivalPulseDuration = arrivalWaves.at(-1).delay + waveDuration;
     let moved = false;
     const drag = new Map();
     const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    const vehicleImage = new Image();
+    vehicleImage.addEventListener("load", requestDraw);
+    vehicleImage.src = "assets/volvo-xc60-white.png";
     const land = geography.land.map(polygon => polygon.map(project));
     const lake = geography.lake.map(project);
     const rivers = geography.rivers.map(river => river.map(project));
@@ -106,6 +110,7 @@
       else if (options.pulseArrival) arrivalPulse = { startAt: null };
       if (focusDay !== view.day || options.resetCamera) {
         focusDay = view.day;
+        vehicleHeading = null;
         manual = false;
         overview = false;
       }
@@ -118,15 +123,20 @@
         overview = false;
       }
       const fitted = fit(overview ? view.allFit : view.fit);
+      const arrivalLift = clamp((view.arrivalInset || 0) * .5, 0, Math.max(0, (layout.height - 230) * .48));
+      const approach = view.approach;
+      const blend = approach?.blend ?? Number(view.showArrival);
       if (!manual) {
         target = fitted;
         if (!overview && !view.complete && view.follow) {
           const [x, y] = view.point;
-          const localZoom = view.close && view.day === 0 ? Math.max(fitted.scale * 1.7, view.close) : fitted.scale * 1.48;
-          target = { x, y, scale: view.day === 1 ? view.stayScale : Math.min(15500, localZoom) };
+          const [stopX, stopY] = approach?.point || view.point;
+          const travelScale = fitted.scale * 1.48;
+          const scale = view.day === 1 ? view.stayScale : Math.min(15500, travelScale * (1 + .2 * blend));
+          target = { x: mix(x, stopX, blend), y: mix(y, stopY, blend), scale };
         }
       }
-      target.lift = clamp((view.arrivalInset || 0) * .5, 0, Math.max(0, (layout.height - 230) * .48));
+      target.lift = arrivalLift * blend;
       if (!camera || options.snap || reduceMotion.matches) camera = { ...target };
       requestDraw();
     }
@@ -305,7 +315,42 @@
       context.fillText(name, px + 8, py + h / 2 + .3);
     }
 
-    function routes(pulseElapsed) {
+    function drawVehicle(x, y, view, delta) {
+      const aim = view.heading;
+      if (vehicleHeading === null || reduceMotion.matches) vehicleHeading = aim;
+      else if (view.travel) {
+        const turn = Math.atan2(Math.sin(aim - vehicleHeading), Math.cos(aim - vehicleHeading));
+        vehicleHeading += turn * (1 - Math.exp(-delta / 68));
+      } else if (!view.showArrival) vehicleHeading = aim;
+
+      const length = layout.height < 400 ? 40 : 48;
+      const width = length / 2;
+      context.save();
+      context.translate(x, y);
+      context.rotate(vehicleHeading);
+      context.shadowBlur = 5;
+      context.shadowColor = "#020611";
+      context.shadowOffsetY = 2;
+      if (vehicleImage.complete && vehicleImage.naturalWidth) {
+        context.drawImage(vehicleImage, -width / 2, -length / 2, width, length);
+      } else {
+        context.fillStyle = "#e8eff6";
+        context.fillRect(-width / 2 + 2, -length / 2 + 2, width - 4, length - 4);
+        context.shadowBlur = 0;
+        context.fillStyle = "#233546";
+        context.fillRect(-width / 2 + 5, -length / 4, width - 10, length / 2);
+      }
+      if (view.braking && !reduceMotion.matches) {
+        context.fillStyle = `rgba(255, 102, 86, ${.68 * view.braking})`;
+        context.shadowColor = "#ff5448";
+        context.shadowBlur = 5;
+        context.shadowOffsetY = 0;
+        for (const side of [-1, 1]) context.fillRect(side * width * .31 - 1.5, length * .34, 3, 4);
+      }
+      context.restore();
+    }
+
+    function routes(pulseElapsed, delta) {
       const view = snapshot;
       const segments = overview ? view.allLegs : view.legs;
       for (const leg of segments) strokeLeg(leg, 1, false);
@@ -321,7 +366,7 @@
         const [x, y] = screen(place.point);
         if (x < 0 || x > layout.width || y < 64 || y > layout.height - 25) continue;
         const active = !overview && !view.travel && place.id === view.place;
-        dot(x, y, active ? 6 : 4.4, "#122c3d", active ? "#9addff" : "#9ac5ce", 1.15);
+        if (!active) dot(x, y, 4.4, "#122c3d", "#9ac5ce", 1.15);
         markers.push({ id: place.id, x, y, active, place });
       }
       const named = [];
@@ -334,32 +379,32 @@
       if (overview || view.complete) return;
       const [x, y] = screen(view.point);
       if (x < -15 || x > layout.width + 15 || y < 64 || y > layout.height - 15) return;
-      if (!reduceMotion.matches) {
-        const halo = context.createRadialGradient(x, y, 2, x, y, 25);
-        halo.addColorStop(0, "#71c8ffee");
-        halo.addColorStop(.34, "#3197fa80");
-        halo.addColorStop(1, "#3078d000");
-        dot(x, y, 25, halo);
-      }
       if (pulseElapsed !== null) {
         for (const wave of arrivalWaves) {
           const progress = (pulseElapsed - wave.delay) / waveDuration;
           if (progress < 0 || progress >= 1) continue;
           const remaining = 1 - progress;
-          const radius = mix(12, wave.radius, 1 - remaining ** 2);
-          dot(x, y, radius, null, `rgba(117, 216, 255, ${wave.opacity * remaining})`, 2);
+          const radius = mix(11, wave.radius, 1 - remaining ** 2);
+          dot(x, y, radius, null, `rgba(127, 216, 252, ${wave.opacity * remaining ** 1.65})`, 1.25);
         }
       }
-      dot(x, y, 10, "#70c8ff27", "#78ceff87");
-      dot(x, y, 4, "#ebfaff", "#69d2ff", 1.7);
+      drawVehicle(x, y, view, delta);
       const active = markers.find(marker => marker.active);
-      if (active) label(active.place.short, x, y, active.place.label, true);
+      if (active) label(active.place.short, x, y - 23, active.place.label, true);
+    }
+
+    function cameraIsSettled() {
+      const panPixels = Math.hypot(camera.x - target.x, camera.y - target.y) * target.scale
+        + Math.abs(camera.lift - target.lift);
+      const zoomPixels = Math.abs(camera.scale / target.scale - 1) * Math.max(layout.width, layout.height) / 2;
+      return panPixels + zoomPixels < 1;
     }
 
     function draw(now) {
       frame = null;
       if (!snapshot || !camera || !layout.width) return;
-      const alpha = reduceMotion.matches ? 1 : 1 - Math.exp(-Math.min(50, now - (lastFrame || now - 16)) / 118);
+      const delta = Math.min(50, now - (lastFrame || now - 16));
+      const alpha = reduceMotion.matches ? 1 : 1 - Math.exp(-delta / 118);
       lastFrame = now;
       let adjusting = false;
       for (const key of ["x", "y", "scale", "lift"]) {
@@ -367,21 +412,16 @@
         if (Math.abs(camera[key] - target[key]) > epsilon) adjusting = true;
         camera[key] = Math.abs(camera[key] - target[key]) <= epsilon ? target[key] : mix(camera[key], target[key], alpha);
       }
-      if (arrivalPulse?.startAt === null && !drag.size) {
-        const centerPixels = Math.hypot(camera.x - target.x, camera.y - target.y) * target.scale
-          + Math.abs(camera.lift - target.lift);
-        const zoomPixels = Math.abs(camera.scale / target.scale - 1) * Math.max(layout.width, layout.height) / 2;
-        if (centerPixels + zoomPixels < 1) {
-          camera = { ...target };
-          adjusting = false;
-          arrivalPulse.startAt = now + 80;
-        }
+      if (!drag.size && (snapshot.approach?.blend === 1 || arrivalPulse?.startAt === null) && cameraIsSettled()) {
+        camera = { ...target };
+        adjusting = false;
+        if (arrivalPulse?.startAt === null) arrivalPulse.startAt = now;
       }
       context.setTransform(layout.ratio, 0, 0, layout.ratio, 0, 0);
       terrain();
       const pulseElapsed = arrivalPulse?.startAt == null ? null : now - arrivalPulse.startAt;
       if (pulseElapsed !== null && pulseElapsed >= arrivalPulseDuration) arrivalPulse = null;
-      routes(pulseElapsed);
+      routes(pulseElapsed, delta);
       if (adjusting || arrivalPulse) requestDraw();
     }
 

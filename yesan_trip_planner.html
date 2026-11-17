@@ -7,11 +7,12 @@
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
   <title>스플라스 리솜 · 예산 여행 지도</title>
-  <link rel="stylesheet" href="styles.css?v=map-controls">
+  <link rel="stylesheet" href="styles.css?v=xc60">
+  <link rel="preload" href="assets/volvo-xc60-white.png" as="image">
   <script defer src="trip-data.js?v=arrival"></script>
   <script defer src="map-data.js?v=arrival"></script>
-  <script defer src="map.js?v=settled-pulse"></script>
-  <script defer src="player.js?v=arrival-pulse"></script>
+  <script defer src="map.js?v=xc60"></script>
+  <script defer src="player.js?v=xc60"></script>
 </head>
 <body>
   <header class="masthead">
@@ -27,7 +28,7 @@
   <main class="layout">
     <section class="journey" id="journey" aria-label="여행 지도">
       <div class="map-area">
-        <canvas id="cartography" tabindex="0" aria-label="여행 경로 지도. 왼쪽과 오른쪽을 탭하면 이전과 다음 장소로 이동합니다. 키보드에서는 대괄호 키로 장소를 이동합니다. 방향키로 지도를 움직이고 더하기와 빼기로 확대하거나 축소합니다."></canvas>
+        <canvas id="cartography" tabindex="0" aria-label="흰색 볼보 XC60이 표시되는 여행 경로 지도. 왼쪽과 오른쪽을 탭하면 이전과 다음 장소로 이동합니다. 키보드에서는 대괄호 키로 장소를 이동합니다. 방향키로 지도를 움직이고 더하기와 빼기로 확대하거나 축소합니다."></canvas>
         <div class="map-vignette" aria-hidden="true"></div>
         <div class="map-header">
           <div class="day-controls">

@@ -86,6 +86,8 @@
   let map = null;
   let activeDay = 0;
   let currentIndex = -1;
+  let panelIndex = -1;
+  let parkedVehicle = null;
   let time = 0;
   let arrived = false;
   let arrivalVisible = false;
@@ -214,35 +216,62 @@
     };
   }
 
+  function easedTravel(fraction) {
+    const ramp = .24;
+    const cruise = 1 - ramp;
+    if (fraction < ramp) return fraction ** 2 / (2 * ramp * cruise);
+    if (fraction > cruise) return 1 - (1 - fraction) ** 2 / (2 * ramp * cruise);
+    return (fraction - ramp / 2) / cruise;
+  }
+
+  function vehiclePose(line, fraction, direction) {
+    const span = Math.min(65 / line.length, .06);
+    const from = position(line, fraction - direction * span).point;
+    const to = position(line, fraction + direction * span).point;
+    return {
+      point: position(line, fraction).point,
+      heading: Math.atan2(to[0] - from[0], from[1] - to[1])
+    };
+  }
+
   function playbackView() {
     const complete = time >= playback.duration;
-    const segment = playback.timeline.find(item => item.end > time) || playback.timeline.at(-1);
+    const segment = movement?.segment || playback.timeline.find(item => item.end > time) || playback.timeline.at(-1);
     const index = movement?.cardIndex ?? segment.index;
     const event = today().events[index];
     const fraction = clamp((time - segment.start) / (segment.end - segment.start), 0, 1);
     const travelProgress = reducedMotion.matches
       ? Math.floor(fraction * 12) / 12
-      : fraction < .12 ? fraction * fraction / .2112 : fraction > .88 ? 1 - (1 - fraction) ** 2 / .2112 : (fraction - .06) / .88;
+      : easedTravel(fraction);
+    const direction = movement?.direction || 1;
+    const journeyProgress = direction > 0 ? fraction : 1 - fraction;
+    const approachProgress = clamp((journeyProgress - .42) / .35, 0, 1);
+    const approach = movement && {
+      point: movement.stop.point,
+      blend: approachProgress ** 2 * (3 - 2 * approachProgress)
+    };
+    const travel = movement?.segment.leg;
+    const pose = travel
+      ? vehiclePose(travel.line, travelProgress, direction)
+      : parkedVehicle?.place === event.place ? parkedVehicle : { point: project(trip.places[event.place].point), heading: 0 };
+
     const progressByLeg = {};
     for (const item of playback.timeline) {
       if (!item.leg) continue;
-      if (item.end <= time) progressByLeg[item.leg.id] = 1;
-      else if (item === segment) progressByLeg[item.leg.id] = travelProgress;
+      if (item === movement?.segment) progressByLeg[item.leg.id] = travelProgress;
+      else if (item.end <= time) progressByLeg[item.leg.id] = 1;
     }
     return {
-      ...playback, index, day: activeDay, place: event.place, complete, follow,
-      point: segment.leg ? position(segment.leg.line, travelProgress).point : project(trip.places[event.place].point),
-      travel: segment.leg, travelProgress, progressByLeg, direction: movement?.direction || 1,
-      close: segment.leg
-        ? segment.leg.mode === "foot" ? 11800 : 0
-        : event.place === "monorail" ? 5800 : event.place === "home" ? 0 : 2450,
+      ...playback, ...pose, index, day: activeDay, place: event.place, complete, follow,
+      approach, travel, travelProgress, progressByLeg, direction,
+      braking: travel && clamp((journeyProgress - .68) / .12, 0, 1),
       stayScale: mix(5500, 15300, clamp(time / 9500, 0, 1))
     };
   }
 
   function render(options) {
     const view = playbackView();
-    if (currentIndex !== view.index) setPlace(view.index);
+    if (currentIndex !== view.index) setCurrentEvent(view.index);
     const showArrival = arrived && !movement && !overview;
     if (arrivalVisible !== showArrival) {
       arrivalVisible = showArrival;
@@ -251,10 +280,12 @@
       mapArea.classList.toggle("has-arrival", showArrival);
       if (!showArrival) byId("arrivalStatus").textContent = "";
     }
+    const nextPanel = movement?.destination ?? view.index;
+    if (panelIndex !== nextPanel) setPlace(nextPanel);
     if (showArrival && byId("arrivalStatus").textContent !== placeNodes.title.textContent) {
       byId("arrivalStatus").textContent = placeNodes.title.textContent;
     }
-    const arrivalInset = showArrival ? panelHeight : 0;
+    const arrivalInset = !overview && (showArrival || movement) ? panelHeight : 0;
     map?.update({ ...view, arrivalInset, showArrival }, options);
   }
 
@@ -273,6 +304,7 @@
     const reached = movement.direction > 0 ? proposed >= movement.end : proposed <= movement.end;
     if (reached) {
       time = playback.starts[movement.destination];
+      parkedVehicle = { ...movement.stop, place: today().events[movement.destination].place };
       movement = null;
       arrived = true;
       stopAnimation();
@@ -330,7 +362,10 @@
       return;
     }
     stopAnimation();
-    movement = { destination: index, end: direction > 0 ? leg.end : leg.start, direction, cardIndex: currentIndex };
+    movement = {
+      segment: leg, destination: index, end: direction > 0 ? leg.end : leg.start, direction, cardIndex: currentIndex,
+      stop: vehiclePose(leg.leg.line, direction > 0 ? 1 : 0, direction)
+    };
     time = direction > 0 ? Math.max(time, leg.start) : Math.min(time, leg.end);
     overview = false;
     follow = true;
@@ -355,6 +390,8 @@
     activeDay = day;
     playback = buildPlayback(today());
     currentIndex = -1;
+    panelIndex = -1;
+    parkedVehicle = null;
     overview = false;
     arrived = eventIndex !== null;
     follow = arrived;
@@ -373,6 +410,7 @@
       return;
     }
     movement = null;
+    if (parkedVehicle?.place !== today().events[index].place) parkedVehicle = null;
     arrived = true;
     stopAnimation();
     time = playback.starts[index];
@@ -391,8 +429,16 @@
     render({ overview: value });
   }
 
-  function setPlace(index) {
+  function setCurrentEvent(index) {
     currentIndex = index;
+    for (const row of document.querySelectorAll(".event-row")) {
+      if (Number(row.dataset.day) === activeDay && Number(row.dataset.index) === index) row.setAttribute("aria-current", "step");
+      else row.removeAttribute("aria-current");
+    }
+  }
+
+  function setPlace(index) {
+    panelIndex = index;
     const day = today();
     const event = day.events[index];
     const place = trip.places[event.place];
@@ -421,10 +467,12 @@
     placeNodes.directions.setAttribute("aria-label", place.name + " 길찾기 (Google 지도, 새 탭)");
     const scenes = event.scenes || place.scenes;
     placeNodes.photos.replaceChildren(...scenes.map((key, i) => photoButton(key, () => showGallery(scenes, i))));
-    for (const row of document.querySelectorAll(".event-row")) {
-      if (Number(row.dataset.day) === activeDay && Number(row.dataset.index) === index) row.setAttribute("aria-current", "step");
-      else row.removeAttribute("aria-current");
-    }
+    measurePanel();
+  }
+
+  function measurePanel() {
+    panelHeight = placePanel.offsetHeight;
+    mapArea.style.setProperty("--panel-height", panelHeight + "px");
   }
 
   function photoButton(key, action) {
@@ -614,6 +662,7 @@
   function rebuildCatalog() {
     if (movement) arrived = false;
     movement = null;
+    parkedVehicle = null;
     stopAnimation();
     const current = Math.max(0, currentIndex);
     catalog = makeCatalog();
@@ -832,8 +881,7 @@
   catalog = makeCatalog();
   chooseDay(0);
   new ResizeObserver(() => {
-    panelHeight = placePanel.offsetHeight;
-    mapArea.style.setProperty("--panel-height", panelHeight + "px");
-    if (arrivalVisible) render();
+    measurePanel();
+    if (arrivalVisible || movement) render();
   }).observe(placePanel);
 })();
