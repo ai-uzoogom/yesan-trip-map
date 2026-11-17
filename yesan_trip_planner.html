@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="light dark">
+  <meta name="color-scheme" content="dark">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
   <title>스플라스 리솜 · 예산 여행 지도</title>
-  <link rel="stylesheet" href="styles.css">
-  <script defer src="trip-data.js"></script>
-  <script defer src="map-data.js"></script>
-  <script defer src="map.js"></script>
-  <script defer src="player.js"></script>
+  <link rel="stylesheet" href="styles.css?v=arrival">
+  <script defer src="trip-data.js?v=arrival"></script>
+  <script defer src="map-data.js?v=arrival"></script>
+  <script defer src="map.js?v=arrival"></script>
+  <script defer src="player.js?v=arrival"></script>
 </head>
 <body>
   <header class="masthead">
@@ -25,13 +25,13 @@
   </header>
 
   <main class="layout">
-    <section class="journey" id="journey" aria-label="여행 지도 플레이어">
+    <section class="journey" id="journey" aria-label="여행 지도">
       <div class="map-area">
-        <canvas id="cartography" tabindex="0" aria-label="여행 경로 지도. 왼쪽과 오른쪽을 탭하면 이전과 다음 장소로 이동합니다. 키보드에서는 대괄호 키를 사용하세요."></canvas>
+        <canvas id="cartography" tabindex="0" aria-label="여행 경로 지도. 왼쪽과 오른쪽을 탭하면 이전과 다음 장소로 이동합니다. 키보드에서는 대괄호 키로 장소를 이동합니다. 방향키로 지도를 움직이고 더하기와 빼기로 확대하거나 축소합니다."></canvas>
         <div class="map-vignette" aria-hidden="true"></div>
         <div class="map-header">
           <div class="day-controls">
-            <div class="day-tabs" id="days" role="group" aria-label="재생 날짜"></div>
+            <div class="day-tabs" id="days" role="group" aria-label="여행 날짜"></div>
             <div class="map-header-actions">
               <button class="map-button schedule-button" type="button" id="schedule" data-icon="list" title="전체 일정 보기" aria-label="전체 일정 보기"></button>
               <button class="icon-button map-button" id="fullscreen" type="button" data-icon="expand" aria-label="지도 전체 화면" title="지도 전체 화면"></button>
@@ -39,7 +39,6 @@
           </div>
         </div>
         <div class="map-tools" role="group" aria-label="지도 조작">
-          <span class="north" aria-hidden="true">N <span data-icon="north"></span></span>
           <button class="icon-button map-button" type="button" id="zoomIn" data-icon="plus" aria-label="지도 확대" title="지도 확대"></button>
           <button class="icon-button map-button" type="button" id="zoomOut" data-icon="minus" aria-label="지도 축소" title="지도 축소"></button>
           <button class="icon-button map-button" type="button" id="overview" data-icon="frame" aria-pressed="false" aria-label="전체 여행 경로" title="전체 여행 경로"></button>
@@ -49,14 +48,13 @@
           <button type="button" id="routeStatus" class="route-status"><span data-icon="layers"></span><span id="routeLabel">개략 경로</span></button>
           <span class="source" id="attribution"></span>
         </div>
-      </div>
-
-      <div class="stage-footer">
-        <article class="place-panel" id="placePanel" aria-labelledby="placeTitle">
-          <div class="place-copy" id="placeCopy">
+        <p id="arrivalStatus" class="sr-only" role="status"></p>
+        <article class="place-panel" id="placePanel" aria-labelledby="placeTitle" aria-hidden="true" inert>
+          <div>
             <div class="place-meta"><span data-icon="clock"></span><span id="placeTime"></span><span class="meta-divider"></span><span id="placeKind"></span><span class="place-count" id="placeCount"></span></div>
             <h2 id="placeTitle"></h2>
             <p id="placeDescription"></p>
+            <dl id="placeActivities" class="place-activities" aria-label="세부 일정" hidden></dl>
           </div>
           <div id="photos" class="photos" aria-label="여행 장면 일러스트"></div>
           <div class="place-actions">
@@ -64,20 +62,6 @@
             <a id="directions" class="directions" target="_blank" rel="noopener noreferrer"><span data-icon="navigation"></span> 길찾기</a>
           </div>
         </article>
-        <div class="playback" aria-label="재생 조작">
-          <div class="progress-heading"><label for="progress">재생 진행</label><span id="distance"></span><output id="percent" for="progress">0%</output></div>
-          <input id="progress" type="range" min="0" max="1000" value="0" aria-label="재생 진행률">
-          <div class="transport">
-            <button type="button" class="icon-button" id="restart" data-icon="restart" aria-label="처음 위치로" title="처음 위치로"></button>
-            <button type="button" class="icon-button" id="previous" data-icon="skipBack" aria-label="이전 일정" title="이전 일정"></button>
-            <button type="button" class="icon-button play" id="play" data-icon="play" aria-label="다음 일정까지 재생" title="다음 일정까지 재생"></button>
-            <button type="button" class="icon-button" id="next" data-icon="skipNext" aria-label="다음 일정" title="다음 일정"></button>
-            <label class="speed"><span class="sr-only">재생 속도</span>
-              <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
-              <span data-icon="chevronDown"></span>
-            </label>
-          </div>
-        </div>
       </div>
     </section>
 

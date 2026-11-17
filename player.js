@@ -10,18 +10,12 @@
     list: '<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/>',
     expand: '<path d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/>',
     compress: '<path d="M4 9h5V4m6 0v5h5M4 15h5v5m6 0v-5h5"/>',
-    north: '<path d="m6 18 6-13 6 13-6-3z"/>',
     plus: '<path d="M5 12h14M12 5v14"/>',
     minus: '<path d="M5 12h14"/>',
     frame: '<path d="M9 4H4v5m11-5h5v5M4 15v5h5m6 0h5v-5"/><circle cx="12" cy="12" r="3"/>',
     layers: '<path d="m3 8 9-5 9 5-9 5-9-5Zm0 4 9 5 9-5M3 16l9 5 9-5"/>',
     clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
     navigation: '<path d="m3 10 18-7-7 18-3-8z"/>',
-    restart: '<path d="M4 10a8 8 0 1 1 1 8M4 5v5h5"/>',
-    skipBack: '<path d="M6 5v14m13-13-9 6 9 6z"/>',
-    skipNext: '<path d="M18 5v14M5 6l9 6-9 6z"/>',
-    play: '<path d="m8 5 11 7-11 7z" fill="currentColor"/>',
-    pause: '<path d="M8 6v12m8-12v12" stroke-width="3"/>',
     chevronDown: '<path d="m6 9 6 6 6-6"/>',
     chevronRight: '<path d="m9 6 6 6-6 6"/>',
     chevronLeft: '<path d="m15 6-6 6 6 6"/>',
@@ -34,7 +28,6 @@
     food: '<path d="M5 4v6a3 3 0 0 0 6 0V4M8 4v16m8-9c0-3 2-7 4-7v16m-4-9h4"/>',
     bridge: '<path d="M3 17h18M6 16V6m12 10V6M6 9q6 9 12 0M3 13l3-3m12 0 3 3"/>',
     water: '<path d="M12 3 6.4 10a7 7 0 1 0 11.2 0L12 3Zm-3 11c0 1.8 1.3 3 3 3"/>',
-    train: '<rect x="5" y="4" width="14" height="14" rx="4"/><path d="M5 11h14m-7-7v7m-4 4h.01m8 0h.01m-7 3-3 3m9-3 3 3"/>',
     hotel: '<path d="M4 20V5m16 15v-8a2 2 0 0 0-2-2h-7v7M4 17h16"/><circle cx="8" cy="12" r="2"/>',
     walk: '<circle cx="13" cy="5" r="2"/><path d="m6 12 4-3 3 1 2 3 4 1m-8-4-1 6-4 4m4-4 4 2 1 3"/>',
     pin: '<path d="M19 10c0 4.5-7 10-7 10S5 14.5 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2"/>'
@@ -96,14 +89,14 @@
   let activeDay = 0;
   let currentIndex = -1;
   let time = 0;
-  let playing = false;
+  let arrived = false;
+  let arrivalVisible = false;
+  let panelHeight = 0;
   let movement = null;
   let overview = false;
   let follow = false;
   let animation = null;
   let previousFrame = null;
-  let lastPercent = -1;
-  let lastDistance = "";
   let toastTimer = null;
   let galleryScenes = [];
   let galleryIndex = 0;
@@ -112,13 +105,12 @@
   let hidingFullscreen = false;
 
   const placeNodes = {
-    title: byId("placeTitle"), copy: byId("placeCopy"), time: byId("placeTime"), kind: byId("placeKind"),
-    count: byId("placeCount"), desc: byId("placeDescription"), photos: byId("photos"),
+    title: byId("placeTitle"), time: byId("placeTime"), kind: byId("placeKind"),
+    count: byId("placeCount"), desc: byId("placeDescription"), activities: byId("placeActivities"), photos: byId("photos"),
     next: byId("nextTitle"), directions: byId("directions")
   };
-  const percent = byId("percent");
-  const progress = byId("progress");
-  const distanceLabel = byId("distance");
+  const placePanel = byId("placePanel");
+  const mapArea = placePanel.parentElement;
   const routeStatus = byId("routeStatus");
   const today = () => trip.days[activeDay];
   const stopsFor = day => [...new Set(day.events.map(event => event.place))];
@@ -245,7 +237,7 @@
       travel: segment.leg, travelProgress, progressByLeg, direction: movement?.direction || 1,
       close: segment.leg
         ? segment.leg.mode === "foot" ? 11800 : 0
-        : ["monorail", "bridge"].includes(event.place) ? 5800 : event.place === "home" ? 0 : 2450,
+        : event.place === "monorail" ? 5800 : event.place === "home" ? 0 : 2450,
       stayScale: mix(5500, 15300, clamp(time / 9500, 0, 1))
     };
   }
@@ -253,41 +245,25 @@
   function render(options) {
     const view = playbackView();
     if (currentIndex !== view.index) setPlace(view.index);
-    map?.update(view, options);
-    const value = Math.floor(time / playback.duration * 100);
-    progress.value = Math.round(time / playback.duration * 1000);
-    if (lastPercent !== value) {
-      percent.value = value + "%";
-      progress.style.setProperty("--progress", value + "%");
-      progress.setAttribute("aria-valuetext", value + "%");
-      lastPercent = value;
+    const showArrival = arrived && !movement && !overview;
+    if (arrivalVisible !== showArrival) {
+      arrivalVisible = showArrival;
+      placePanel.inert = !showArrival;
+      placePanel.setAttribute("aria-hidden", String(!showArrival));
+      mapArea.classList.toggle("has-arrival", showArrival);
+      if (!showArrival) byId("arrivalStatus").textContent = "";
     }
-    const text = distanceText(view);
-    if (lastDistance !== text) {
-      distanceLabel.textContent = text;
-      lastDistance = text;
+    if (showArrival && byId("arrivalStatus").textContent !== placeNodes.title.textContent) {
+      byId("arrivalStatus").textContent = placeNodes.title.textContent;
     }
+    const arrivalInset = showArrival ? panelHeight : 0;
+    map?.update({ ...view, arrivalInset }, options);
   }
 
-  function distanceText(view) {
-    if (!playback.legs.length) return "리조트 내 일정";
-    if (playback.legs.some(leg => leg.preview)) return "이동 시뮬레이션";
-    const driven = playback.legs.reduce((sum, leg) => sum + (view.progressByLeg[leg.id] || 0) * leg.distance, 0);
-    const total = playback.legs.reduce((sum, leg) => sum + leg.distance, 0);
-    return formatKm(driven) + " / " + formatKm(total);
-  }
-
-  function setPlaying(value) {
-    playing = value;
-    const play = byId("play");
-    setIcon(play, value ? "pause" : "play", value ? "일시정지" : "다음 일정까지 재생");
-    if (!value) {
-      if (animation !== null) cancelAnimationFrame(animation);
-      animation = null;
-      previousFrame = null;
-      return;
-    }
-    animation = requestAnimationFrame(tick);
+  function stopAnimation() {
+    if (animation !== null) cancelAnimationFrame(animation);
+    animation = null;
+    previousFrame = null;
   }
 
   function tick(now) {
@@ -295,13 +271,14 @@
     if (!movement) return;
     const delta = previousFrame === null ? 0 : now - previousFrame;
     previousFrame = now;
-    const proposed = time + delta * Number(byId("speed").value) * movement.direction;
-    const arrived = movement.direction > 0 ? proposed >= movement.end : proposed <= movement.end;
-    if (arrived) {
+    const proposed = time + delta * movement.direction;
+    const reached = movement.direction > 0 ? proposed >= movement.end : proposed <= movement.end;
+    if (reached) {
       time = playback.starts[movement.destination];
       movement = null;
-      setPlaying(false);
-      render();
+      arrived = true;
+      stopAnimation();
+      render({ follow: !overview, overview });
       return;
     }
     time = proposed;
@@ -309,17 +286,9 @@
     animation = requestAnimationFrame(tick);
   }
 
-  function togglePlay() {
-    if (playing) setPlaying(false);
-    else if (movement) setPlaying(true);
-    else if (time >= playback.duration) restart();
-    else stepSchedule(1);
-  }
-
   function redirectMovement(direction) {
     if (!movement) return false;
     if (movement.direction !== direction) moveToEvent(movement.cardIndex);
-    else if (!playing) setPlaying(true);
     return true;
   }
 
@@ -362,7 +331,7 @@
       chooseEvent(activeDay, index);
       return;
     }
-    setPlaying(false);
+    stopAnimation();
     movement = { destination: index, end: direction > 0 ? leg.end : leg.start, direction, cardIndex: currentIndex };
     time = direction > 0 ? Math.max(time, leg.start) : Math.min(time, leg.end);
     overview = false;
@@ -370,44 +339,34 @@
     byId("overview").setAttribute("aria-pressed", "false");
     refreshRouteStatus();
     render({ follow: true });
-    setPlaying(true);
+    animation = requestAnimationFrame(tick);
   }
 
   function finishDay() {
     movement = null;
-    setPlaying(false);
+    stopAnimation();
     time = playback.duration;
+    arrived = false;
     render();
     showSummary();
   }
 
-  function restart() {
+  function chooseDay(day, eventIndex = null) {
     movement = null;
-    setPlaying(false);
-    time = 0;
-    follow = false;
-    overview = false;
-    byId("overview").setAttribute("aria-pressed", "false");
-    refreshRouteStatus();
-    render({ resetCamera: true });
-  }
-
-  function chooseDay(day, eventIndex = 0) {
-    movement = null;
-    setPlaying(false);
-    const changed = activeDay !== day;
+    stopAnimation();
     activeDay = day;
     playback = buildPlayback(today());
     currentIndex = -1;
     overview = false;
-    follow = eventIndex > 0;
+    arrived = eventIndex !== null;
+    follow = arrived;
     byId("overview").setAttribute("aria-pressed", "false");
-    time = playback.starts[eventIndex];
+    time = playback.starts[eventIndex ?? 0];
     document.body.style.setProperty("--day-accent", today().accent);
     for (const button of byId("days").children) button.setAttribute("aria-pressed", String(Number(button.dataset.day) === day));
-    if (changed || eventIndex === 0) expandDay(day);
+    expandDay(day);
     refreshRouteStatus();
-    render({ resetCamera: true, snap: changed });
+    render({ resetCamera: true });
   }
 
   function chooseEvent(day, index) {
@@ -416,7 +375,8 @@
       return;
     }
     movement = null;
-    setPlaying(false);
+    arrived = true;
+    stopAnimation();
     time = playback.starts[index];
     follow = true;
     overview = false;
@@ -425,9 +385,9 @@
     render({ follow: true });
   }
 
-  function setOverview(value, resumeFollow = false) {
+  function setOverview(value) {
     overview = value;
-    follow = resumeFollow;
+    follow = arrived || !!movement;
     byId("overview").setAttribute("aria-pressed", String(value));
     refreshRouteStatus();
     render({ overview: value });
@@ -443,6 +403,17 @@
     placeNodes.kind.textContent = event.kind;
     placeNodes.count.textContent = twoDigits(index + 1) + " / " + twoDigits(day.events.length);
     placeNodes.desc.textContent = event.desc;
+    const activities = event.activities || [];
+    placeNodes.activities.hidden = !activities.length;
+    placeNodes.activities.replaceChildren(...activities.map(activity => {
+      const item = element("div");
+      const time = element("time", "", activity.time);
+      time.dateTime = activity.time;
+      const detail = element("dt");
+      detail.append(time);
+      item.append(detail, element("dd", "", activity.title));
+      return item;
+    }));
     placeNodes.next.textContent = day.events[index + 1]?.title || trip.days[activeDay + 1]?.title || "여행 완료";
     placeNodes.directions.hidden = !!event.noNav;
     const destination = event.place === "home"
@@ -452,17 +423,10 @@
     placeNodes.directions.setAttribute("aria-label", place.name + " 길찾기 (Google 지도, 새 탭)");
     const scenes = event.scenes || place.scenes;
     placeNodes.photos.replaceChildren(...scenes.map((key, i) => photoButton(key, () => showGallery(scenes, i))));
-    for (const node of [placeNodes.copy, placeNodes.photos]) {
-      node.classList.remove("reveal");
-      requestAnimationFrame(() => node.classList.add("reveal"));
-    }
     for (const row of document.querySelectorAll(".event-row")) {
       if (Number(row.dataset.day) === activeDay && Number(row.dataset.index) === index) row.setAttribute("aria-current", "step");
       else row.removeAttribute("aria-current");
     }
-    byId("previous").disabled = index === 0;
-    const end = index === day.events.length - 1;
-    setIcon(byId("next"), end ? "list" : "skipNext", end ? "여행 경로 요약" : "다음 일정");
   }
 
   function photoButton(key, action) {
@@ -550,7 +514,7 @@
         if (all) byId("scheduleDialog").close();
         chooseEvent(dayIndex, index);
         expandDay(dayIndex);
-        if (all) byId("placeTitle").scrollIntoView({ block: "nearest", behavior: "instant" });
+        if (all) byId("cartography").focus({ preventScroll: true });
       });
       item.append(button);
       list.append(item);
@@ -566,7 +530,6 @@
   }
 
   function openDialog(id) {
-    setPlaying(false);
     const dialog = byId(id);
     if (!dialog.open) dialog.showModal();
   }
@@ -581,7 +544,10 @@
 
   const itineraryText = () => [
     trip.title, trip.dateRange,
-    ...trip.days.flatMap((day, i) => ["", "DAY " + (i + 1) + " · " + day.date + " (" + day.weekday + ")", ...day.events.map(event => event.time + "  " + event.title)])
+    ...trip.days.flatMap((day, i) => ["", "DAY " + (i + 1) + " · " + day.date + " (" + day.weekday + ")", ...day.events.flatMap(event => [
+      event.time + "  " + event.title,
+      ...(event.activities || []).map(activity => "  " + activity.time + "  " + activity.title)
+    ])])
   ].join("\n");
 
   async function copySchedule() {
@@ -648,12 +614,14 @@
   }
 
   function rebuildCatalog() {
+    if (movement) arrived = false;
     movement = null;
-    setPlaying(false);
+    stopAnimation();
     const current = Math.max(0, currentIndex);
     catalog = makeCatalog();
     playback = buildPlayback(today());
     time = playback.starts[current];
+    setPlace(current);
     refreshRouteStatus();
     render({ overview });
   }
@@ -793,21 +761,6 @@
     }
   }
 
-  byId("play").addEventListener("click", togglePlay);
-  byId("restart").addEventListener("click", restart);
-  byId("previous").addEventListener("click", () => stepSchedule(-1));
-  byId("next").addEventListener("click", () => stepSchedule(1));
-  progress.addEventListener("input", () => {
-    movement = null;
-    setPlaying(false);
-    time = Number(progress.value) / 1000 * playback.duration;
-    follow = true;
-    overview = false;
-    byId("overview").setAttribute("aria-pressed", "false");
-    refreshRouteStatus();
-    render({ follow: true, snap: true });
-    if (time >= playback.duration && !playing) showSummary();
-  });
   byId("zoomIn").addEventListener("click", () => map?.zoom(1.45));
   byId("zoomOut").addEventListener("click", () => map?.zoom(1 / 1.45));
   byId("overview").addEventListener("click", () => setOverview(!overview));
@@ -867,9 +820,6 @@
   document.addEventListener("keydown", event => {
     if (event.key === "Escape" && !document.fullscreenElement && !document.querySelector("dialog[open]")) setImmersive(false);
   });
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) setPlaying(false);
-  });
   for (const button of document.querySelectorAll("[data-close]")) {
     button.addEventListener("click", () => button.closest("dialog").close());
   }
@@ -885,4 +835,9 @@
   }
   catalog = makeCatalog();
   chooseDay(0);
+  new ResizeObserver(() => {
+    panelHeight = placePanel.offsetHeight;
+    mapArea.style.setProperty("--panel-height", panelHeight + "px");
+    if (arrivalVisible) render();
+  }).observe(placePanel);
 })();

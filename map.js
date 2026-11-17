@@ -43,7 +43,6 @@
     let frame = null;
     let snapshot = null;
     let layout = { width: 0, height: 0, ratio: 1, x: 0, y: 0 };
-    let fitted = null;
     let focusDay = null;
     let overview = false;
     let manual = false;
@@ -67,8 +66,8 @@
       return { point: project([lon, lat]), radius: Math.max(rx, ry), rings };
     });
 
-    const screen = point => [(point[0] - camera.x) * camera.scale + layout.x, (point[1] - camera.y) * camera.scale + layout.y];
-    const world = ([x, y]) => [(x - layout.x) / camera.scale + camera.x, (y - layout.y) / camera.scale + camera.y];
+    const screen = point => [(point[0] - camera.x) * camera.scale + layout.x, (point[1] - camera.y) * camera.scale + layout.y - camera.lift];
+    const world = ([x, y]) => [(x - layout.x) / camera.scale + camera.x, (y - layout.y + camera.lift) / camera.scale + camera.y];
 
     function resize() {
       const { width, height } = canvas.getBoundingClientRect();
@@ -88,7 +87,7 @@
       const top = Math.min(...y);
       const bottom = Math.max(...y);
       const width = Math.max(146, layout.width - 126);
-      const height = Math.max(110, layout.height - 150);
+      const height = Math.max(110, layout.height - 128);
       const scale = Math.min(15500, width / (right - left || .016), height / (bottom - top || .016));
       return { x: (left + right) / 2, y: (top + bottom) / 2, scale };
     }
@@ -108,7 +107,7 @@
         manual = false;
         overview = false;
       }
-      fitted = fit(overview ? view.allFit : view.fit);
+      const fitted = fit(overview ? view.allFit : view.fit);
       if (!manual) {
         target = fitted;
         if (!overview && !view.complete && view.follow) {
@@ -117,6 +116,7 @@
           target = { x, y, scale: view.day === 1 ? view.stayScale : Math.min(15500, localZoom) };
         }
       }
+      target.lift = clamp((view.arrivalInset || 0) * .5, 0, Math.max(0, (layout.height - 230) * .48));
       if (!camera || options.snap || reduceMotion.matches) camera = { ...target };
       requestDraw();
     }
@@ -192,7 +192,7 @@
         if (camera.scale > 5000 && city.type !== 1) continue;
         if (camera.scale < 650 && city.type === 1) continue;
         const [x, y] = screen(city.point);
-        if (x < 12 || x > width - 12 || y < 70 || y > height - 27) continue;
+        if (x < 12 || x > width - 12 || y < 91 || y > height - 27) continue;
         if (x > width - 65 && y > height - 240) continue;
         if (city.type === 2) {
           context.fillStyle = "#55758e";
@@ -343,8 +343,8 @@
       const alpha = reduceMotion.matches ? 1 : 1 - Math.exp(-Math.min(50, now - (lastFrame || now - 16)) / 118);
       lastFrame = now;
       let adjusting = false;
-      for (const key of ["x", "y", "scale"]) {
-        const epsilon = key === "scale" ? .08 : .000035;
+      for (const key of ["x", "y", "scale", "lift"]) {
+        const epsilon = key === "x" || key === "y" ? .000035 : .08;
         if (Math.abs(camera[key] - target[key]) > epsilon) adjusting = true;
         camera[key] = Math.abs(camera[key] - target[key]) <= epsilon ? target[key] : mix(camera[key], target[key], alpha);
       }
@@ -358,10 +358,10 @@
       if (frame === null) frame = requestAnimationFrame(draw);
     }
 
-    function moveTo(next) {
+    function moveTo(next, animate = false) {
       manual = true;
-      camera = { ...next };
-      target = { ...next };
+      target = { ...target, ...next };
+      if (!animate || reduceMotion.matches) camera = { ...camera, ...next };
       requestDraw();
     }
 
@@ -370,11 +370,16 @@
       moveTo({ x: camera.x - dx / camera.scale, y: camera.y - dy / camera.scale, scale: camera.scale });
     }
 
-    function zoom(factor, anchor = [layout.x, layout.y]) {
+    function zoom(factor, anchor) {
       if (!camera) return;
+      const base = anchor ? camera : target;
+      const scale = clamp(base.scale * factor, 160, 49000);
+      if (!anchor) {
+        moveTo({ scale }, true);
+        return;
+      }
       const [x, y] = world(anchor);
-      const scale = clamp(camera.scale * factor, 160, 49000);
-      moveTo({ x: x - (anchor[0] - layout.x) / scale, y: y - (anchor[1] - layout.y) / scale, scale });
+      moveTo({ x: x - (anchor[0] - layout.x) / scale, y: y - (anchor[1] - layout.y + camera.lift) / scale, scale });
     }
 
     function location(event) {
