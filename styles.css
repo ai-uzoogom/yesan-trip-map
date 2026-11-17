@@ -277,6 +277,16 @@ body.immersed { overflow: hidden; }
   .map-header-actions .map-button { position: relative; isolation: isolate; background: transparent; border: 0; }
   .map-header-actions .map-button::before { content: ""; position: absolute; z-index: -1; inset: 5px; border: 1px solid #33445a; border-radius: 8px; background: #111e2ae8; }
   .map-header-actions .map-button:hover::before { background: #24364a; }
+  .place-panel, .travel-distance { background: #132031; border-color: #304258; box-shadow: none; }
+  .travel-distance {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+  }
+  #traveledKm { font-size: 18px; font-weight: 600; }
 }
 @media (max-width: 420px) {
   .map-foot { inset-inline: 10px; }

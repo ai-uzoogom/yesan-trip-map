@@ -59,6 +59,7 @@
     let moved = false;
     const drag = new Map();
     const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+    const compact = matchMedia("(max-width: 760px), (orientation: landscape) and (max-height: 520px)");
     const vehicleImage = new Image();
     vehicleImage.addEventListener("load", requestDraw);
     vehicleImage.src = "assets/volvo-xc60-white.png";
@@ -91,7 +92,7 @@
       if (snapshot) update(snapshot, { snap: true });
     }
 
-    function fit(points) {
+    function fit(points, maximumScale) {
       const x = points.map(point => point[0]);
       const y = points.map(point => point[1]);
       const left = Math.min(...x);
@@ -100,7 +101,7 @@
       const bottom = Math.max(...y);
       const width = Math.max(146, layout.width - 126);
       const height = Math.max(110, layout.height - 128);
-      const scale = Math.min(15500, width / (right - left || .016), height / (bottom - top || .016));
+      const scale = Math.min(maximumScale, width / (right - left || .016), height / (bottom - top || .016));
       return { x: (left + right) / 2, y: (top + bottom) / 2, scale };
     }
 
@@ -122,21 +123,39 @@
         manual = false;
         overview = false;
       }
-      const fitted = fit(overview ? view.allFit : view.fit);
-      const arrivalLift = clamp((view.arrivalInset || 0) * .5, 0, Math.max(0, (layout.height - 230) * .48));
+      const maxScale = compact.matches && view.day === 1 && !overview ? 3400 : 15500;
+      const fitted = fit(overview ? view.allFit : view.fit, maxScale);
+      const panelHeight = view.arrivalInset || 0;
+      let arrivalLift = panelHeight * .5;
+      let maximumLift = Math.max(0, (layout.height - 230) * .48);
       const approach = view.approach;
-      const blend = approach?.blend ?? Number(view.showArrival);
+      const blend = approach?.blend ?? (view.showArrival ? 1 : 0);
       if (!manual) {
         target = fitted;
         if (!overview && !view.complete && view.follow) {
           const [x, y] = view.point;
           const [stopX, stopY] = approach?.point || view.point;
-          const travelScale = fitted.scale * 1.48;
-          const scale = view.day === 1 ? view.stayScale : Math.min(15500, travelScale * (1 + .2 * blend));
-          target = { x: mix(x, stopX, blend), y: mix(y, stopY, blend), scale };
+          const travelScale = fitted.scale * (compact.matches ? 1.04 : 1.48);
+          const arrivalZoom = compact.matches ? .07 : .2;
+          const followWeight = compact.matches ? .7 : 1;
+          const scale = view.day === 1
+            ? compact.matches ? fitted.scale : view.stayScale
+            : Math.min(maxScale, travelScale * (1 + arrivalZoom * blend));
+          if (compact.matches && panelHeight && layout.height >= layout.width) {
+            const parkedScale = view.day === 1 ? fitted.scale : Math.min(maxScale, travelScale * (1 + arrivalZoom));
+            const parkedY = layout.y + (stopY - mix(fitted.y, stopY, followWeight)) * parkedScale;
+            const cardTop = layout.height - panelHeight - view.arrivalBottom;
+            arrivalLift = Math.max(arrivalLift, parkedY - Math.max(96, cardTop - 32));
+            maximumLift = Math.max(0, parkedY - 96);
+          }
+          target = {
+            x: mix(fitted.x, mix(x, stopX, blend), followWeight),
+            y: mix(fitted.y, mix(y, stopY, blend), followWeight),
+            scale
+          };
         }
       }
-      target.lift = arrivalLift * blend;
+      target.lift = clamp(arrivalLift, 0, maximumLift) * blend;
       if (!camera || options.snap || reduceMotion.matches) camera = { ...target };
       requestDraw();
     }
@@ -243,7 +262,7 @@
         context.lineWidth = 7;
         context.stroke();
         context.shadowColor = color;
-        context.shadowBlur = 10;
+        context.shadowBlur = compact.matches ? 6 : 10;
       }
       context.setLineDash(preview ? [5, 4] : leg.mode === "foot" ? [2, 3] : []);
       context.strokeStyle = color + (bright ? "ff" : "91");
@@ -273,7 +292,7 @@
       context.lineTo(...b);
       context.lineWidth = 3.4;
       context.strokeStyle = glow;
-      context.shadowBlur = 11;
+      context.shadowBlur = compact.matches ? 7 : 11;
       context.shadowColor = "#55bfff";
       context.stroke();
       context.shadowBlur = 0;
@@ -323,7 +342,7 @@
         vehicleHeading += turn * (1 - Math.exp(-delta / 68));
       } else if (!view.showArrival) vehicleHeading = aim;
 
-      const length = layout.height < 400 ? 40 : 48;
+      const length = layout.height < 400 ? 40 : compact.matches ? 44 : 48;
       const width = length / 2;
       context.save();
       context.translate(x, y);
@@ -511,7 +530,9 @@
       event.preventDefault();
       actions[event.key]();
     });
-    reduceMotion.addEventListener("change", () => snapshot && update(snapshot, { snap: true }));
+    for (const preference of [reduceMotion, compact]) {
+      preference.addEventListener("change", () => snapshot && update(snapshot, { snap: true }));
+    }
     new ResizeObserver(resize).observe(canvas);
     resize();
     return { update };

@@ -92,6 +92,7 @@
   let arrived = false;
   let arrivalVisible = false;
   let panelHeight = 0;
+  let panelBottom = 0;
   let movement = null;
   let overview = false;
   let follow = false;
@@ -297,7 +298,7 @@
     }
     renderTravelDistance(view);
     const arrivalInset = !overview && (showArrival || movement) ? panelHeight : 0;
-    map?.update({ ...view, arrivalInset, showArrival }, options);
+    map?.update({ ...view, arrivalInset, arrivalBottom: panelBottom, showArrival }, options);
   }
 
   function renderTravelDistance(view) {
@@ -507,6 +508,7 @@
 
   function measurePanel() {
     panelHeight = placePanel.offsetHeight;
+    panelBottom = Math.max(0, mapArea.clientHeight - placePanel.offsetTop - panelHeight);
     mapArea.style.setProperty("--panel-height", panelHeight + "px");
   }
 
