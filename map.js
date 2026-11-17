@@ -47,7 +47,7 @@
     let overview = false;
     let manual = false;
     let lastFrame = 0;
-    let arrivalPulseStartedAt = null;
+    let arrivalPulse = null;
     const arrivalWaves = [
       { delay: 0, radius: 30, opacity: .66 },
       { delay: 135, radius: 38, opacity: .77 },
@@ -102,8 +102,8 @@
 
     function update(view, options = {}) {
       snapshot = view;
-      if (!view.showArrival || reduceMotion.matches) arrivalPulseStartedAt = null;
-      else if (options.pulseArrival) arrivalPulseStartedAt = performance.now();
+      if (!view.showArrival || reduceMotion.matches) arrivalPulse = null;
+      else if (options.pulseArrival) arrivalPulse = { startAt: null };
       if (focusDay !== view.day || options.resetCamera) {
         focusDay = view.day;
         manual = false;
@@ -367,12 +367,22 @@
         if (Math.abs(camera[key] - target[key]) > epsilon) adjusting = true;
         camera[key] = Math.abs(camera[key] - target[key]) <= epsilon ? target[key] : mix(camera[key], target[key], alpha);
       }
+      if (arrivalPulse?.startAt === null && !drag.size) {
+        const centerPixels = Math.hypot(camera.x - target.x, camera.y - target.y) * target.scale
+          + Math.abs(camera.lift - target.lift);
+        const zoomPixels = Math.abs(camera.scale / target.scale - 1) * Math.max(layout.width, layout.height) / 2;
+        if (centerPixels + zoomPixels < 1) {
+          camera = { ...target };
+          adjusting = false;
+          arrivalPulse.startAt = now + 80;
+        }
+      }
       context.setTransform(layout.ratio, 0, 0, layout.ratio, 0, 0);
       terrain();
-      const pulseElapsed = arrivalPulseStartedAt === null ? null : now - arrivalPulseStartedAt;
-      if (pulseElapsed !== null && pulseElapsed >= arrivalPulseDuration) arrivalPulseStartedAt = null;
+      const pulseElapsed = arrivalPulse?.startAt == null ? null : now - arrivalPulse.startAt;
+      if (pulseElapsed !== null && pulseElapsed >= arrivalPulseDuration) arrivalPulse = null;
       routes(pulseElapsed);
-      if (adjusting || arrivalPulseStartedAt !== null) requestDraw();
+      if (adjusting || arrivalPulse) requestDraw();
     }
 
     function requestDraw() {
@@ -380,6 +390,7 @@
     }
 
     function moveTo(next, animate = false) {
+      if (arrivalPulse?.startAt != null) arrivalPulse = null;
       manual = true;
       target = { ...target, ...next };
       if (!animate || reduceMotion.matches) camera = { ...camera, ...next };
