@@ -336,8 +336,17 @@
     const place = events[currentIndex].place;
     for (let index = currentIndex + direction; index >= 0 && index < events.length; index += direction) {
       if (events[index].place === place) continue;
-      const firstAtPlace = events.findIndex(event => event.place === events[index].place);
-      moveToEvent(firstAtPlace);
+      const destination = events[index].place;
+      let firstAtPlace = index;
+      while (firstAtPlace > 0 && events[firstAtPlace - 1].place === destination) firstAtPlace--;
+      let primary = firstAtPlace;
+      for (let i = firstAtPlace; i < events.length && events[i].place === destination; i++) {
+        if (events[i].title === trip.places[destination].name) {
+          primary = i;
+          break;
+        }
+      }
+      moveToEvent(primary);
       return;
     }
     stepSchedule(direction);
